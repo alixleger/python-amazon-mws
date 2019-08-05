@@ -18,10 +18,17 @@ try:
     from urllib.parse import quote
 except ImportError:
     from urllib import quote
+
+from xml.etree import ElementTree
 try:
-    from xml.etree.ElementTree import ParseError as XMLError
+    # python 2.7+
+    # pylint: disable=no-member
+    XMLError = ElementTree.ParseError
 except ImportError:
-    from xml.parsers.expat import ExpatError as XMLError
+    # python 2.6-
+    # pylint: disable=no-member
+    from xml.parsers import expat
+    XMLError = expat.ExpatError 
 
 
 __all__ = [
