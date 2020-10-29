@@ -64,6 +64,7 @@ MARKETPLACES = {
     "MX": "https://mws.amazonservices.com.mx",  # A1AM78C64UM0Y8
     "NL": "https://mws-eu.amazonservices.com",  # A1805IZSGTT6HS
     "SA": "https://mws-eu.amazonservices.com",  # A17E79C6D8DWNP
+    "SE": "https://mws-eu.amazonservices.com",  # A2NODRKZP88ZB9
     "SG": "https://mws-fe.amazonservices.com",  # A19VAU5U5O7RUS
     "TR": "https://mws-eu.amazonservices.com",  # A33AVAJ2PDY3EV
     "UK": "https://mws-eu.amazonservices.com",  # A1F83G8C2ARO7P - GB alias
@@ -341,6 +342,41 @@ class MWS(object):
         return utils.enumerate_param(param, values)
 
 
+def feed_options_str(feed_options):
+    """Convert a FeedOptions dict of values into an appropriate string value.
+
+    Amazon docs for VAT upload with details:
+    https://m.media-amazon.com/images/G/01/B2B/DeveloperGuide/vat_calculation_service__dev_guide_H383rf73k4hsu1TYRH139kk134yzs.pdf
+    (section 6.4)
+
+    Example:
+      feed_options = {
+        "shippingid": "283845474",
+        "totalAmount": 3.25,
+        "totalvatamount": 1.23,
+        "invoicenumber": "INT-3431-XJE3",
+        "documenttype": "CreditNote",
+        "transactionid": "amzn:crow:429491192ksjfhe39s",
+      }
+      print(feed_options_str(feed_options))
+      >>> "metadata:shippingid=283845474;metadata:totalAmount=3.25;metadata:totalvatamount=1.23;
+      metadata:invoicenumber=INT-3431-XJE3;metadata:documenttype=CreditNote;
+      metadata:transactionid=amzn:crow:429491192ksjfhe39s"
+    """
+    if not feed_options:
+        return None
+    if not isinstance(feed_options, dict):
+        raise ValueError("`feed_options` should be a dict or None")
+    output = []
+    for key, val in feed_options.items():
+        outval = val
+        if outval is True or outval is False:
+            # Convert literal `True` or `False` to strings `"true"` and `"false"`
+            outval = str(outval).lower()
+        output.append(f"metadata:{key}={outval}")
+    return ";".join(output)
+
+
 class Feeds(MWS):
     """
     Amazon MWS Feeds API
@@ -351,14 +387,18 @@ class Feeds(MWS):
         'GetFeedSubmissionList',
     ]
 
-    def submit_feed(self, feed, feed_type, marketplaceids=None,
+    def submit_feed(self, feed, feed_type, feed_options=None, marketplaceids=None,
                     content_type="text/xml", purge='false'):
         """
         Uploads a feed ( xml or .tsv ) to the seller's inventory.
         Can be used for creating/updating products on Amazon.
         """
+        if isinstance(feed_options, dict):
+            # Convert dict to appropriate string value
+            feed_options = feed_options_str(feed_options)
         data = dict(Action='SubmitFeed',
                     FeedType=feed_type,
+                    FeedOptions=feed_options,
                     PurgeAndReplace=purge)
         data.update(utils.enumerate_param('MarketplaceIdList.Id.', marketplaceids))
         md = calc_md5(feed)
